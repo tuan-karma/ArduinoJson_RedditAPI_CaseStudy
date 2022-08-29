@@ -146,7 +146,7 @@ void analyzeJson(JsonDocument &doc)
     Serial.println(doc.memoryUsage());
     serializeJsonPretty(doc, Serial);
     Serial.println();
-    // Exatrct the list of forecasts
+    // Extract the list of forecasts
     JsonArray children = doc["data"]["children"];
 
     for (JsonObject child : children)
