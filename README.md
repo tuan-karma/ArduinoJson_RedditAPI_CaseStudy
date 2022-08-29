@@ -1,4 +1,4 @@
-# A ArduinoJson Study
+# A ArduinoJson Case Study
 - Using ArduinoJson to read Reddit API
 - Base on the corresponding "Case study" in the book "Mastering ArduinoJson"
 
