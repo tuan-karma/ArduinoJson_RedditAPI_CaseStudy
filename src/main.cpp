@@ -7,30 +7,18 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
-const char *ssid = "VTCC";          // your network SSID (name of wifi network)
-const char *password = "vtcc40pbc"; // your network password
-
-const char *server = "www.reddit.com";
-const char *api_request = "/r/arduino.json";
-
-void connectWifi()
+namespace
 {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.println();
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println();
-    Serial.printf("Connected to %s\n", ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    const char *ssid = "VTCC";          // your network SSID (name of wifi network)
+    const char *password = "vtcc40pbc"; // your network password
+
+    const char *server = "www.reddit.com";
+    const char *api_request = "/r/arduino.json";
 }
 
 WiFiClientSecure client;
-enum responseCodes
+
+enum class HTTP_CODES
 {
     HTTP_OK,
     CONN_FAILED,
@@ -38,7 +26,37 @@ enum responseCodes
     STATUS_FAILED,
     HEADER_FAILED,
 };
-enum responseCodes requestHTTPs()
+
+HTTP_CODES requestHTTPs(WiFiClientSecure &client);
+
+void analyzeJson(JsonDocument &doc, WiFiClientSecure &client);
+
+void dump(WiFiClientSecure &client);
+
+void setup_wifi();
+
+void setup()
+{
+    Serial.begin(115200);
+    setup_wifi();
+    while (requestHTTPs(client) != HTTP_CODES::HTTP_OK)
+        delay(500);
+
+    // dump(client);
+
+    DynamicJsonDocument doc(6 * 1024);
+    analyzeJson(doc, client);
+
+    Serial.println("\nDone.");
+    client.stop();
+}
+
+void loop()
+{
+    // put your main code here, to run repeatedly:
+}
+
+HTTP_CODES requestHTTPs(WiFiClientSecure &client)
 { // Send HTTP request and Consume the header
   // Return: responseCodes
     client.setTimeout(10000);
@@ -46,7 +64,7 @@ enum responseCodes requestHTTPs()
     if (!client.connect(server, 443))
     {
         Serial.println("Connection failed!");
-        return CONN_FAILED;
+        return HTTP_CODES::CONN_FAILED;
     }
     yield();
 
@@ -60,7 +78,7 @@ enum responseCodes requestHTTPs()
     {
         Serial.println("Failed to send request");
         client.stop();
-        return SEND_FAILED;
+        return HTTP_CODES::SEND_FAILED;
     }
 
     // Check HTTP status
@@ -71,7 +89,7 @@ enum responseCodes requestHTTPs()
         Serial.print("Unexptected HTTP status: ");
         Serial.println(status);
         client.stop();
-        return STATUS_FAILED;
+        return HTTP_CODES::STATUS_FAILED;
     }
 
     // Skip HTTP headers
@@ -80,47 +98,12 @@ enum responseCodes requestHTTPs()
     {
         Serial.println("Invalid header");
         client.stop();
-        return HEADER_FAILED;
+        return HTTP_CODES::HEADER_FAILED;
     }
-    return HTTP_OK;
+    return HTTP_CODES::HTTP_OK;
 }
 
-void analyzeJson(JsonDocument &doc);
-void dump(WiFiClientSecure &client)
-{
-    while (client.connected())
-    {
-        while (client.available())
-        {
-            char c = client.read();
-            Serial.write(c);
-        }
-        yield();
-    }
-}
-
-void setup()
-{
-    Serial.begin(115200);
-    connectWifi();
-    while (requestHTTPs() != HTTP_OK)
-        delay(500);
-
-    // dump(client);
-
-    DynamicJsonDocument doc(6 * 1024);
-    analyzeJson(doc);
-
-    Serial.println("\nDone.");
-    client.stop();
-}
-
-void loop()
-{
-    // put your main code here, to run repeatedly:
-}
-
-void analyzeJson(JsonDocument &doc)
+void analyzeJson(JsonDocument &doc, WiFiClientSecure &client)
 {
     StaticJsonDocument<128> filter;
     filter["data"]["children"][0]["data"]["title"] = true;
@@ -129,7 +112,7 @@ void analyzeJson(JsonDocument &doc)
     Serial.print("filter.memoryUsage(): ");
     Serial.println(filter.memoryUsage());
     serializeJsonPretty(filter, Serial);
-    Serial.println(); 
+    Serial.println();
 
     DeserializationError err =
         deserializeJson(doc, client, DeserializationOption::Filter(filter));
@@ -156,3 +139,34 @@ void analyzeJson(JsonDocument &doc)
         Serial.println(child["data"]["title"].as<const char *>());
     }
 }
+
+/*----- Helper Functions -----*/
+void dump(WiFiClientSecure &client)
+{
+    while (client.connected())
+    {
+        while (client.available())
+        {
+            char c = client.read();
+            Serial.write(c);
+        }
+        yield();
+    }
+}
+
+void setup_wifi()
+{
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    Serial.println();
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println();
+    Serial.printf("Connected to %s\n", ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+}
+/*----------------------------*/
